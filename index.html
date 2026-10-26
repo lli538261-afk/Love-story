@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Biz</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:sans-serif}
+  #hint{position:fixed;top:12px;left:0;right:0;text-align:center;color:#fff;opacity:.85;font-size:14px;pointer-events:none;text-shadow:0 1px 3px #000}
+  #joy{position:fixed;left:30px;bottom:30px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.4);touch-action:none}
+  #knob{position:absolute;left:35px;top:35px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.5)}
+  #btn{position:fixed;right:30px;bottom:50px;padding:14px 20px;border-radius:12px;background:rgba(255,255,255,.2);color:#fff;border:0;font-size:16px}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="hint">Joystik bilan yuring. Charxpalak yoki Feedup stoliga boring va "O'tirish" ni bosing.</div>
+<div id="joy"><div id="knob"></div></div>
+<button id="btn">O'tirish</button>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ===== Suratlar (keyin o'z suratlaringiz bilan almashtiring) =====
+const WHEEL_PHOTOS   = ['https://picsum.photos/seed/d/400/600','https://picsum.photos/seed/e/400/600','https://picsum.photos/seed/f/400/600'];
+const KITCHEN_PHOTOS = ['https://picsum.photos/seed/a/640/400','https://picsum.photos/seed/b/640/400','https://picsum.photos/seed/c/640/400'];
+
+// ===== Sahna =====
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fc9e8);
+scene.fog = new THREE.Fog(0x9fc9e8, 40, 110);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 300);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x556644, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(15, 30, 10); scene.add(sun);
+
+const mat = c => new THREE.MeshLambertMaterial({color:c});
+function block(w,h,d,color,x,y,z){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat(color));
+  m.position.set(x,y,z); scene.add(m); return m;
+}
+
+// ===== Yer =====
+block(160,0.2,160,0x4f7a4f,0,-0.1,0);            // o't
+block(60,0.1,40,0x9a9a9a,0,0.02,-17);            // charxpalak maydoni (tosh)
+block(18,0.1,14,0x5a5a5a,-32,0.02,0);            // Feedup pol
+
+// ===== CHARXPALAK (bog'da) =====
+const WX = 0, WY = 11, WZ = -14, R = 10;
+block(0.7,11,0.7,0x888888,WX,5.5,WZ-0.5);        // ustun
+const wheel = new THREE.Group();
+wheel.position.set(WX, WY, WZ);
+scene.add(wheel);
+wheel.add(new THREE.Mesh(new THREE.TorusGeometry(R,0.22,8,48), mat(0xdddddd)));
+const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.6,12), mat(0x999999));
+hub.rotation.x = Math.PI/2; wheel.add(hub);
+for(let i=0;i<8;i++){
+  const a = i/8*Math.PI*2;
+  const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,R*2,4), mat(0xaaaaaa));
+  spoke.position.set(0,0,0);
+  spoke.rotation.z = a; wheel.add(spoke);
+}
+const cabinColors = [0xff6b8b,0xffd166,0x06d6a0,0x4cc9f0,0xf72585,0xffbe0b,0x8ecae6,0xe76f51];
+const cabins = [];
+for(let i=0;i<8;i++){
+  const a = i/8*Math.PI*2;
+  const c = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.1,1.1), mat(cabinColors[i]));
+  c.position.set(Math.cos(a)*R, Math.sin(a)*R, 0);
+  wheel.add(c); cabins.push(c);
+}
+
+// Skameyka va stol
+const BENCH_Z = -7.2;
+block(4.5,0.15,1.2,0x8b5a2b,0,0.5,BENCH_Z-0.6);  // skameyka (ikkisi o'tiradi)
+block(0.9,0.9,0.9,0x6b4226,0,0.45,BENCH_Z);      // stol
+// Telefon: stol ustida, bizga qaragan ekran
+const phone = new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.9), new THREE.MeshBasicMaterial({color:0x000000}));
+phone.position.set(0,1.45,BENCH_Z+0.05); scene.add(phone);
+const phoneScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.84), new THREE.MeshBasicMaterial({color:0x333333}));
+phoneScreen.position.set(0,1.45,BENCH_Z+0.06); scene.add(phoneScreen);
+const wheelSeatBoy  = new THREE.Vector3(-0.7,0,BENCH_Z+0.5);
+const wheelSeatGirl = new THREE.Vector3( 0.7,0,BENCH_Z+0.5);
+
+// ===== FEEDUP (Farg'ona, chapda) =====
+const KX = -32;
+block(18,4.5,0.3,0xdddddd,KX,2.25,-6.5);          // orqa devor
+block(0.3,4.5,14,0xdddddd,KX-9,2.25,0);           // chap devor
+block(18,0.4,14,0xe30613,KX,4.7,0);               // qizil shift
+block(18,0.6,0.25,0xffd400,KX,4.2,-6.4);          // sariq peshtaxta
+// yog'och panellar
+for(let i=0;i<6;i++) block(0.25,3.6,0.25,0x8b5a2b,KX-7+i*2.8,2,-6.2);
+// monitor
+block(5.6,3.2,0.15,0x111111,KX,3.2,-6.3);
+const kitchenScreen = new THREE.Mesh(new THREE.PlaneGeometry(5.2,2.8), new THREE.MeshBasicMaterial({color:0x333333}));
+kitchenScreen.position.set(KX,3.2,-6.22); scene.add(kitchenScreen);
+// stol va stullar
+block(2.4,0.1,1.0,0xffd400,KX,1.0,1.5);
+block(0.1,1,0.1,0x333333,KX,0.5,1.5);
+const kSeatBoy  = new THREE.Vector3(KX-0.7,0,2.6);
+const kSeatGirl = new THREE.Vector3(KX+0.7,0,2.6);
+
+// ===== Personajlar =====
+const SKIN = 0xe8b896;
+function boyModel(x,z){
+  const g = new THREE.Group();
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.4), mat(0x2b2f3a)); torso.position.y = 1.5; g.add(torso); // kostyum
+  const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.7,0.02), mat(0xffffff)); shirt.position.set(0,1.5,0.21); g.add(shirt); // oq ko'ylak
+  const tie = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.5,0.03), mat(0x7a1f1f)); tie.position.set(0,1.45,0.23); g.add(tie);
+  for(const dx of [-0.18,0.18]){
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.9,0.3), mat(0x1a1d24));
+    leg.position.set(dx,0.45,0); g.add(leg);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33,16,12), mat(SKIN)); head.position.y = 2.25; g.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.36,16,12,0,Math.PI*2,0,Math.PI*0.55), mat(0x1a1410));
+  hair.position.y = 2.32; g.add(hair);
+  g.position.set(x,0,z); scene.add(g); return g;
+}
+function girlModel(x,z){
+  const g = new THREE.Group();
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.5,1.0,12), mat(0x0a0a0a)); skirt.position.y = 0.7; g.add(skirt); // qora ko'ylak
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25,0.5,4,8), mat(0x0a0a0a)); torso.position.y = 1.55; g.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,16,12), mat(SKIN)); head.position.y = 2.25; g.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.34,16,12,0,Math.PI*2,0,Math.PI*0.6), mat(0x5a3424));
+  hair.position.y = 2.3; g.add(hair);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.9,0.25), mat(0x5a3424));
+  back.position.set(0,1.9,-0.18); g.add(back);
+  g.position.set(x,0,z); scene.add(g); return g;
+}
+const boy  = boyModel(-1, -2);
+const girl = girlModel( 1, -2);
+
+// ===== Joystik va klaviatura =====
+const joy = document.getElementById('joy'), knob = document.getElementById('knob');
+let jx=0, jy=0, jActive=false;
+function joyMove(e){
+  const t = e.touches ? e.touches[0] : e;
+  const r = joy.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2, max = r.width/2 - 30;
+  let dx = t.clientX - cx, dy = t.clientY - cy;
+  const d = Math.hypot(dx,dy);
+  if(d > max){ dx = dx/d*max; dy = dy/d*max; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`;
+  jx = dx/max; jy = dy/max;
+}
+joy.addEventListener('touchstart', e=>{ jActive=true; joyMove(e); e.preventDefault(); }, {passive:false});
+joy.addEventListener('touchmove',  e=>{ if(jActive) joyMove(e); e.preventDefault(); }, {passive:false});
+const endJoy = ()=>{ jActive=false; jx=jy=0; knob.style.transform='translate(0,0)'; };
+joy.addEventListener('touchend', endJoy);
+joy.addEventListener('touchcancel', endJoy);
+const keys = {};
+addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
+addEventListener('keyup',   e=>keys[e.key.toLowerCase()]=false);
+
+// ===== Suratlar almashinuvi =====
+const loader = new THREE.TextureLoader();
+function setTex(mesh, url){
+  loader.load(url, t=>{ mesh.material.map = t; mesh.material.color.set(0xffffff); mesh.material.needsUpdate = true; });
+}
+let wi = 0, ki = 0;
+setTex(phoneScreen, WHEEL_PHOTOS[0]);
+setTex(kitchenScreen, KITCHEN_PHOTOS[0]);
+setInterval(()=>{
+  wi = (wi+1) % WHEEL_PHOTOS.length;   setTex(phoneScreen, WHEEL_PHOTOS[wi]);
+  ki = (ki+1) % KITCHEN_PHOTOS.length; setTex(kitchenScreen, KITCHEN_PHOTOS[ki]);
+}, 3000);
+
+// ===== O'tirish =====
+const btn = document.getElementById('btn');
+let mode = 'walk'; // walk | sitWheel | sitKitchen
+function faceTo(obj, tx, tz){ obj.rotation.y = Math.atan2(tx - obj.position.x, tz - obj.position.z); }
+btn.addEventListener('click', ()=>{
+  if(mode !== 'walk'){
+    mode = 'walk'; btn.textContent = "O'tirish";
+    boy.position.x += 1.5; girl.position.x += 1.5; // turgandan keyin biroz siljiydi
+    return;
+  }
+  if(boy.position.distanceTo(wheelSeatBoy) < 3){
+    mode = 'sitWheel';
+    boy.position.copy(wheelSeatBoy); girl.position.copy(wheelSeatGirl);
+    faceTo(boy, 0, BENCH_Z); faceTo(girl, 0, BENCH_Z);
+    btn.textContent = 'Turish';
+  } else if(boy.position.distanceTo(kSeatBoy) < 3){
+    mode = 'sitKitchen';
+    boy.position.copy(kSeatBoy); girl.position.copy(kSeatGirl);
+    faceTo(boy, KX, -6); faceTo(girl, KX, -6);
+    btn.textContent = 'Turish';
+  }
+});
+
+// ===== Tsikl =====
+const clock = new THREE.Clock();
+const camPos = new THREE.Vector3(), camTarget = new THREE.Vector3();
+function update(dt){
+  // Charxpalak aylanadi, kabinalar tik turadi
+  if(mode === 'sitWheel' || mode === 'walk') wheel.rotation.z -= dt*0.12;
+  cabins.forEach(c => c.rotation.z = -wheel.rotation.z);
+
+  let mx = jx, my = -jy;
+  if(keys['w']||keys['arrowup'])    my += 1;
+  if(keys['s']||keys['arrowdown'])  my -= 1;
+  if(keys['a']||keys['arrowleft'])  mx -= 1;
+  if(keys['d']||keys['arrowright']) mx += 1;
+
+  if(mode === 'walk'){
+    const sp = 4*dt;
+    boy.position.x = THREE.MathUtils.clamp(boy.position.x + mx*sp, -40, 30);
+    boy.position.z = THREE.MathUtils.clamp(boy.position.z + my*sp, -22, 22);
+    if(Math.hypot(mx,my) > 0.05) boy.rotation.y = Math.atan2(mx,my);
+    const dx = boy.position.x - girl.position.x, dz = boy.position.z - girl.position.z;
+    const dd = Math.hypot(dx,dz);
+    if(dd > 1.6){
+      girl.position.x += dx/dd*sp*0.95;
+      girl.position.z += dz/dd*sp*0.95;
+      girl.rotation.y = Math.atan2(dx,dz);
+    }
+  }
+}
+
+function animate(){
+  const dt = Math.min(clock.getDelta(), 0.05);
+  update(dt);
+  if(mode === 'walk'){
+    camPos.set(boy.position.x, boy.position.y + 6, boy.position.z + 9);
+    camTarget.set(boy.position.x, boy.position.y + 1.5, boy.position.z);
+  } else if(mode === 'sitWheel'){
+    camPos.set(0, 2.6, -3);
+    camTarget.set(0, 1.5, BENCH_Z);
+  } else {
+    camPos.set(KX, 3, 6);
+    camTarget.set(KX, 3, -6);
+  }
+  camera.position.lerp(camPos, 0.1);
+  camera.lookAt(camTarget);
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
